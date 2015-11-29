@@ -17,7 +17,7 @@ public class IncentiveProtocol extends SingleValueHolder implements CDProtocol {
     public IncentiveProtocol(String prefix) {
         super(prefix);
         // get quota value from the config file. Default 1.
-        quota_value = (Configuration.getInt(prefix + "." + PAR_QUOTA, 1));
+        quota_value = Configuration.getDouble(prefix + "." + PAR_QUOTA, 1.0);
         quota = quota_value;
     }
 
@@ -44,7 +44,7 @@ public class IncentiveProtocol extends SingleValueHolder implements CDProtocol {
             Node peer = linkable.getNeighbor(i);
 
             // Selected peer should be active
-            if (peer.isUp())
+            if (!peer.isUp())
                 continue;
 
             IncentiveProtocol p = (IncentiveProtocol) peer.getProtocol(protocolID);
@@ -82,7 +82,6 @@ public class IncentiveProtocol extends SingleValueHolder implements CDProtocol {
         this.quota -= trans;
         neighbor.value = a2;
         neighbor.quota -= trans;
-
     }
 
     public Object clone() {
