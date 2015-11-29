@@ -1,4 +1,3 @@
-import example.loadbalance.BasicBalance;
 import peersim.cdsim.CDProtocol;
 import peersim.config.Configuration;
 import peersim.config.FastConfig;
@@ -87,7 +86,8 @@ public class IncentiveProtocol extends SingleValueHolder implements CDProtocol {
     }
 
     public Object clone() {
-       return null;
+        final IncentiveProtocol clone = (IncentiveProtocol) super.clone();
+        clone.quota = this.quota;
+        return clone;
     }
-
 }
