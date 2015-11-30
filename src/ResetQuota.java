@@ -17,7 +17,7 @@ public class ResetQuota implements Control {
     @Override
     public boolean execute() {
         for (int i = 0; i < Network.size(); ++i) {
-            ((IncentiveProtocol) Network.get(i).getProtocol(protocolID))
+            ((MediaStreamingProtocol) Network.get(i).getProtocol(protocolID))
                     .resetQuota();
         }
         return false;
