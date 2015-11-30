@@ -10,51 +10,81 @@ import peersim.vector.SingleValueHolder;
  */
 public class MediaStreamingProtocol extends SingleValueHolder implements CDProtocol {
 
-    protected static final String TOTAL_CHUNK_STRING = "total_chunk";
-    private final double total_chunk;
+    protected static final String PAR_CHUNKS = "chunks";
+    private final double totalChunks;
+
+    private static final double DOWNLOAD_QUOTA = 20.0;
+    private static final double UPLOAD_QUOTA = 5.0;
+
+    private double downloadQuota;
+    private double uploadQuota;
 
     public MediaStreamingProtocol(String prefix) {
         super(prefix);
-        total_chunk = Configuration.getDouble(prefix + "." + TOTAL_CHUNK_STRING, 100.00);
+        totalChunks = Configuration.getDouble(prefix + "." + PAR_CHUNKS, 100.0);
+        // TODO: add this to configuration
+        downloadQuota = DOWNLOAD_QUOTA;
+        uploadQuota = UPLOAD_QUOTA;
     }
 
     @Override
     public void nextCycle(Node node, int protocolID) {
+
+        // The node already got needed chunks
+        if (isFinished()) {
+            return;
+        }
+
         // Get ID of the protocol to be able to access the neighbors of the node
-        int linkableID = FastConfig.getLinkable(protocolID);
-        Linkable linkable = (Linkable) node.getProtocol(linkableID);
+        final int linkableID = FastConfig.getLinkable(protocolID);
+        final Linkable linkable = (Linkable) node.getProtocol(linkableID);
 
         // Access all neighbors to detect the most distant
         for (int i = 0; i < linkable.degree(); i++) {
-            Node peer = linkable.getNeighbor(i);
+
+            final Node peer = linkable.getNeighbor(i);
 
             // Selected peer should be active
-//            if (!peer.isUp())
+            if (!peer.isUp()) {
+                continue;
+            }
+
+            final MediaStreamingProtocol p = (MediaStreamingProtocol) peer.getProtocol(protocolID);
+            if (shouldDownload(p)) {
+                doTransfer(p);
+            }
 
             // The node already got needed chunks
-            if (total_chunk == this.value)
+            if (isFinished()) {
                 return;
-
-            MediaStreamingProtocol p = (MediaStreamingProtocol) peer.getProtocol(protocolID);
-            if (p.value > this.value) {
-                doTransfer(p);
             }
         }
 
     }
 
-    private void doTransfer(MediaStreamingProtocol neighbor) {
-        double a1 = this.value;
-        double a2 = neighbor.value;
-        if ((a2 - a1) > 20) {
-            // Transfer the greatest amount of chunks that can be transfered (20)
-            a1 += 20;
-        } else {
-            // Transfer only what can be transfered
-            a1 += (a2 - a1);
-        }
-
-        this.value = a1;
+    public void resetQuota() {
+        downloadQuota = DOWNLOAD_QUOTA;
+        uploadQuota = UPLOAD_QUOTA;
     }
 
+    private boolean isFinished() {
+        return value == totalChunks;
+    }
+
+    private boolean shouldDownload(MediaStreamingProtocol neighbor) {
+        final boolean canDownload = downloadQuota > 0;
+        final boolean peerHasChunk = neighbor.value > value;
+        final boolean peerCanUpload = neighbor.uploadQuota > 0;
+        return canDownload && peerHasChunk && peerCanUpload;
+    }
+
+    private void doTransfer(MediaStreamingProtocol neighbor) {
+        // Determine maximum trasnfer possible
+        double maxTrans = Math.min(downloadQuota, neighbor.uploadQuota);
+        maxTrans = Math.min(maxTrans, neighbor.value - value);
+
+        value += maxTrans;
+        downloadQuota -= maxTrans;
+        neighbor.uploadQuota -= maxTrans;
+    }
 }
