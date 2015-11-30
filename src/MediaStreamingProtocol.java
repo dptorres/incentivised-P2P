@@ -23,8 +23,8 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
     private double downloadQuota;
     private double uploadQuota;
 
-    private double download = 0.0;
-    private double upload = 0.0;
+    private double downloadedChunks;
+    private double uploadedChunks;
 
     public MediaStreamingProtocol(String prefix) {
         super(prefix);
@@ -37,50 +37,42 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
     @Override
     public void nextCycle(Node node, int protocolID) {
 
-        // The node already got needed chunks
-        if (isFinished()) {
+        if (!canUpload()) {
+            // upload quota reached
             return;
         }
 
         // Get ID of the protocol to be able to access the neighbors of the node
         final int linkableID = FastConfig.getLinkable(protocolID);
         final Linkable linkable = (Linkable) node.getProtocol(linkableID);
-        List<MediaStreamingProtocol> sortedNodes = new ArrayList<MediaStreamingProtocol>();
 
-        // Sort neighbors
+        final List<MediaStreamingProtocol> protocols = new ArrayList<>();
+
+        // Sort neighbors according to score
         for (int i = 0; i < linkable.degree(); i++) {
-            Node n = linkable.getNeighbor(i);
-            MediaStreamingProtocol p = (MediaStreamingProtocol) n.getProtocol(protocolID);
-            sortedNodes.add(p);
-        }
-
-        Collections.sort(sortedNodes);
-
-        // Access all neighbors to detect the most distant
-        for (int i = 0; i < linkable.degree(); i++) {
-
             final Node peer = linkable.getNeighbor(i);
-
-            // Selected peer should be inactive
+            // should be active
             if (!peer.isUp()) {
                 continue;
+            }
+            protocols.add((MediaStreamingProtocol) peer.getProtocol(protocolID));
+        }
+
+        Collections.sort(protocols);
+
+        // Access all neighbors
+        for (int i = 0; i < protocols.size(); i++) {
+
+            final MediaStreamingProtocol p = protocols.get(i);
+
+            if (shouldUpload(p)) {
+                doTransfer(p);
             }
 
             if (!canUpload()) {
                 return;
             }
-
-            final MediaStreamingProtocol p = (MediaStreamingProtocol) peer.getProtocol(protocolID);
-            if (shouldUpload(p)) {
-                doTransfer(p);
-            }
-
-            // The node already got needed chunks
-            if (isFinished()) {
-                return;
-            }
         }
-
     }
 
     public void resetQuota() {
@@ -93,27 +85,30 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
     }
 
     private boolean canUpload() {
-        return upload > 0;
+        return uploadQuota > 0;
     }
 
     private boolean shouldUpload(MediaStreamingProtocol neighbor) {
-        final boolean peerHasChunk = neighbor.value > value;
-        final boolean peerCanUpload = neighbor.uploadQuota > 0;
-        return peerHasChunk && peerCanUpload;
+        final boolean peerNeedsChunk = neighbor.value < value;
+        final boolean peerCanDownload = neighbor.downloadQuota > 0;
+        return peerNeedsChunk && peerCanDownload;
     }
 
     private void doTransfer(MediaStreamingProtocol neighbor) {
-        // Determine maximum trasnfer possible
-        double maxTrans = Math.min(downloadQuota, neighbor.uploadQuota);
-        maxTrans = Math.min(maxTrans, neighbor.value - value);
+        // Determine maximum transfer possible
+        double maxTrans = Math.min(uploadQuota, neighbor.downloadQuota);
+        maxTrans = Math.min(maxTrans, value - neighbor.value);
 
-        value += maxTrans;
-        downloadQuota -= maxTrans;
-        neighbor.uploadQuota -= maxTrans;
+        neighbor.value += maxTrans;
+        neighbor.downloadQuota -= maxTrans;
+        neighbor.downloadedChunks += maxTrans;
+
+        uploadQuota -= maxTrans;
+        uploadedChunks += maxTrans;
     }
 
     private double getScore() {
-        return upload/download;
+        return uploadedChunks / (downloadedChunks + 1);
     }
 
     @Override
