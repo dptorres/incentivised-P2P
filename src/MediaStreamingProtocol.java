@@ -49,6 +49,10 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
                 continue;
             }
 
+            if (!canDownload()) {
+                return;
+            }
+
             final MediaStreamingProtocol p = (MediaStreamingProtocol) peer.getProtocol(protocolID);
             if (shouldDownload(p)) {
                 doTransfer(p);
@@ -71,11 +75,14 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
         return value == totalChunks;
     }
 
+    private boolean canDownload() {
+        return downloadQuota > 0;
+    }
+
     private boolean shouldDownload(MediaStreamingProtocol neighbor) {
-        final boolean canDownload = downloadQuota > 0;
         final boolean peerHasChunk = neighbor.value > value;
         final boolean peerCanUpload = neighbor.uploadQuota > 0;
-        return canDownload && peerHasChunk && peerCanUpload;
+        return peerHasChunk && peerCanUpload;
     }
 
     private void doTransfer(MediaStreamingProtocol neighbor) {
