@@ -51,7 +51,7 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
         // Sort neighbors according to score
         for (int i = 0; i < linkable.degree(); i++) {
             final Node peer = linkable.getNeighbor(i);
-            // should be active
+            // should be inactive
             if (!peer.isUp()) {
                 continue;
             }
@@ -59,12 +59,12 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
         }
 
         Collections.sort(protocols);
-
         // Access all neighbors
         for (int i = 0; i < protocols.size(); i++) {
 
             final MediaStreamingProtocol p = protocols.get(i);
 
+            // zzz. behavior...
             if (shouldUpload(p)) {
                 doTransfer(p);
             }
@@ -96,6 +96,8 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
 
     private void doTransfer(MediaStreamingProtocol neighbor) {
         // Determine maximum transfer possible
+        // because of header overhead (efficiency = payload size / packet size)
+        // limiting factors:
         double maxTrans = Math.min(uploadQuota, neighbor.downloadQuota);
         maxTrans = Math.min(maxTrans, value - neighbor.value);
 
@@ -107,7 +109,7 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
         uploadedChunks += maxTrans;
     }
 
-    private double getScore() {
+    public double getScore() {
         return uploadedChunks / (downloadedChunks + 1);
     }
 
@@ -119,7 +121,7 @@ public class MediaStreamingProtocol extends SingleValueHolder implements CDProto
         if (currScore == comScore) {
             return 0;
         } else {
-            return currScore > comScore ? 1 : -1;
+            return currScore > comScore ? -1 : 1;
         }
     }
 }
